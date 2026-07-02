@@ -1,0 +1,608 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Nexus AI - Dashboard</title>
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Inter:wght@400;500;600&family=Fira+Code:wght@400;600&display=swap" rel="stylesheet">
+  
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: { 
+            sans: ['Plus Jakarta Sans', 'sans-serif'],
+            mono: ['Fira Code', 'monospace']
+          },
+          colors: {
+            brand: { 50: '#f0fdfa', 100: '#ccfbf1', 500: '#14b8a6', 600: '#0d9488', 900: '#134e4a' }
+          },
+          animation: {
+            'float': 'float 6s ease-in-out infinite',
+            'float-fast': 'float 4s ease-in-out infinite',
+            'float-slow': 'float 8s ease-in-out infinite',
+            'wiggle': 'wiggle 1s ease-in-out infinite',
+            'tilt': 'tilt 5s ease-in-out infinite',
+            'pulse-slow': 'pulse 4s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+          },
+          keyframes: {
+            float: { '0%, 100%': { transform: 'translateY(0)' }, '50%': { transform: 'translateY(-15px)' } },
+            wiggle: { '0%, 100%': { transform: 'rotate(-3deg)' }, '50%': { transform: 'rotate(3deg)' } },
+            tilt: { '0%, 100%': { transform: 'rotate(0deg)' }, '25%': { transform: 'rotate(1deg)' }, '75%': { transform: 'rotate(-1deg)' } }
+          }
+        }
+      }
+    }
+  </script>
+
+  <style>
+    body { background-color: #F1F5F9; overflow-x: hidden; scroll-behavior: smooth; }
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+    
+    .glass-nav { background: rgba(255, 255, 255, 0.9); backdrop-filter: blur(10px); border-bottom: 1px solid rgba(0,0,0,0.05); }
+    .glass-card { background: white; border: 1px solid #f1f5f9; box-shadow: 0 10px 30px -10px rgba(0,0,0,0.05); }
+    
+    .phone-mockup { border: 12px solid #1e293b; border-radius: 40px; overflow: hidden; position: relative; background: white; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25); }
+    .phone-notch { position: absolute; top: 0; left: 50%; transform: translateX(-50%); width: 120px; height: 25px; background: #1e293b; border-bottom-left-radius: 14px; border-bottom-right-radius: 14px; z-index: 50; }
+    .blend-image { mix-blend-mode: multiply; }
+
+    .fade-bottom {
+        -webkit-mask-image: linear-gradient(to bottom, black 80%, transparent 100%);
+        mask-image: linear-gradient(to bottom, black 80%, transparent 100%);
+    }
+
+    /* Animation Classes */
+    .reveal { opacity: 0; transform: translateY(30px) scale(0.98); transition: all 1s cubic-bezier(0.16, 1, 0.3, 1); }
+    .reveal-left { opacity: 0; transform: translateX(-40px); transition: all 1s cubic-bezier(0.16, 1, 0.3, 1); }
+    .reveal-right { opacity: 0; transform: translateX(40px); transition: all 1s cubic-bezier(0.16, 1, 0.3, 1); }
+    .reveal-zoom { opacity: 0; transform: scale(0.9); transition: all 1s cubic-bezier(0.16, 1, 0.3, 1); }
+    .reveal.active, .reveal-left.active, .reveal-right.active, .reveal-zoom.active { opacity: 1; transform: translate(0, 0) scale(1); }
+
+    @keyframes fadeInUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+    .animate-page-transition { animation: fadeInUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+  </style>
+</head>
+<body class="text-slate-800 font-sans">
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState, useEffect, useRef } = React;
+    const API_URL = window.location.origin + '/api';
+    const WIDGET_URL = window.location.origin;
+
+    // --- REUSABLE COMPONENTS ---
+
+    function Reveal({ children, animation = "reveal", delay = 0, className = "" }) {
+      const ref = useRef(null);
+      const [isActive, setIsActive] = useState(false);
+      useEffect(() => {
+        const observer = new IntersectionObserver(([entry]) => { if (entry.isIntersecting) setIsActive(true); }, { threshold: 0.1 });
+        if (ref.current) observer.observe(ref.current);
+        return () => observer.disconnect();
+      }, []);
+      return <div ref={ref} className={`${animation} ${isActive ? 'active' : ''} ${className}`} style={{ transitionDelay: `${delay}ms` }}>{children}</div>;
+    }
+
+    function Parallax({ children, speed = 10, className = "" }) {
+        const [offset, setOffset] = useState(0);
+        useEffect(() => {
+            const handleScroll = () => { setOffset(window.scrollY * (speed / 100)); };
+            window.addEventListener('scroll', handleScroll);
+            return () => window.removeEventListener('scroll', handleScroll);
+        }, [speed]);
+        return <div style={{ transform: `translateY(${offset}px)` }} className={`will-change-transform ${className}`}>{children}</div>;
+    }
+
+    const Icons = {
+        Home: () => <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg>,
+        Menu: () => <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16M4 18h16"/></svg>,
+        Close: () => <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"/></svg>,
+        Upload: () => <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>,
+        Settings: () => <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"/></svg>,
+        Link: () => <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"/></svg>,
+        Trash: () => <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>,
+        Send: () => <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>,
+        BotHead: () => <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="11" width="18" height="10" rx="2"></rect><circle cx="12" cy="5" r="2"></circle><path d="M12 7v4"></path></svg>,
+        Message: () => <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>,
+        Sparkle: () => <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"></path></svg>,
+        LogOut: () => <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>,
+        Check: () => <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7"/></svg>,
+        Image: () => <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>,
+        ChevronLeft: () => <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7" /></svg>,
+        ChevronRight: () => <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7" /></svg>
+    };
+
+    function SuperWaveBackground() {
+        return (
+            <div className="absolute inset-0 overflow-hidden pointer-events-none">
+                <svg className="absolute w-full h-full" viewBox="0 0 1440 800" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="none">
+                    <defs>
+                        <linearGradient id="gradWave" x1="0%" y1="0%" x2="100%" y2="0%">
+                            <stop offset="0%" style={{stopColor:"#14b8a6", stopOpacity:0}} />
+                            <stop offset="50%" style={{stopColor:"#14b8a6", stopOpacity:0.4}} />
+                            <stop offset="100%" style={{stopColor:"#2dd4bf", stopOpacity:0}} />
+                        </linearGradient>
+                    </defs>
+                    {[...Array(15)].map((_, i) => {
+                        const yOffset = i * 20; 
+                        const speed = 10 + i;
+                        const opacity = 0.5 - (i * 0.03); 
+                        return (
+                            <path key={i} fill="none" stroke="url(#gradWave)" strokeWidth={i % 2 === 0 ? 0.5 : 1} d={`M0,${300 + yOffset} C320,${400 + yOffset} 420,${100 + yOffset} 720,${250 + yOffset} C1020,${400 + yOffset} 1120,${200 + yOffset} 1440,${300 + yOffset}`} className="opacity-40">
+                                <animate attributeName="d" dur={`${speed}s`} repeatCount="indefinite" values={`M0,${300 + yOffset} C320,${400 + yOffset} 420,${100 + yOffset} 720,${250 + yOffset} C1020,${400 + yOffset} 1120,${200 + yOffset} 1440,${300 + yOffset}; M0,${300 + yOffset} C320,${200 + yOffset} 420,${500 + yOffset} 720,${350 + yOffset} C1020,${200 + yOffset} 1120,${400 + yOffset} 1440,${300 + yOffset}; M0,${300 + yOffset} C320,${400 + yOffset} 420,${100 + yOffset} 720,${250 + yOffset} C1020,${400 + yOffset} 1120,${200 + yOffset} 1440,${300 + yOffset}`} />
+                                <animate attributeName="opacity" values={`${opacity};${opacity/2};${opacity}`} dur={`${speed/2}s`} repeatCount="indefinite" />
+                            </path>
+                        )
+                    })}
+                </svg>
+            </div>
+        );
+    }
+
+    function LandingPage({ openDrawer }) {
+        return (
+            <div className="pb-20">
+                <section className="bg-white pt-6 px-4 pb-8 relative overflow-hidden flex flex-col items-center">
+                     <div className="absolute top-0 left-0 w-full h-[500px] bg-gradient-to-b from-slate-50 to-white -z-10"></div>
+                     <Reveal animation="reveal-zoom" className="text-center max-w-4xl mx-auto mb-6 z-20">
+                         {/* Removed Header Navigation with Pricing/Features/About/Contact */}
+                         <h1 className="text-4xl md:text-5xl lg:text-6xl font-extrabold text-slate-900 leading-[1.1] tracking-wide mt-8">
+                             Precision in Data,<br/>
+                             Excellence in <span className="text-transparent bg-clip-text bg-gradient-to-r from-brand-600 to-teal-400">AI Automation</span>.
+                         </h1>
+                         <p className="mt-6 text-slate-500 text-sm md:text-base max-w-xl mx-auto font-medium leading-loose tracking-wide">
+                             Not just functionality. Nexus embodies ingenuity, seamlessly blending your static documents into active intelligence.
+                         </p>
+                     </Reveal>
+                     <Reveal animation="reveal" delay={200} className="w-full max-w-4xl relative z-10">
+                        <div className="relative w-full aspect-[4/3] md:aspect-[16/9] lg:aspect-[2.5/1] bg-slate-900 rounded-[30px] overflow-hidden shadow-2xl shadow-slate-900/30 group border border-slate-800">
+                            <div className="absolute top-5 left-5 flex gap-2 z-30">
+                                <div className="w-8 h-8 rounded-full border border-slate-700 flex items-center justify-center text-slate-400 hover:bg-white hover:text-black transition-colors cursor-pointer"><Icons.Link /></div>
+                                <div className="w-8 h-8 rounded-full border border-slate-700 flex items-center justify-center text-slate-400 hover:bg-white hover:text-black transition-colors cursor-pointer"><Icons.Settings /></div>
+                            </div>
+                            <div className="absolute top-5 right-5 flex flex-col items-end z-30">
+                                <span className="text-slate-500 text-[10px] font-mono mb-1 tracking-widest">SYSTEM STATUS</span>
+                                <div className="w-24 h-1 bg-slate-800 rounded-full overflow-hidden"><div className="w-[85%] h-full bg-brand-500"></div></div>
+                            </div>
+                            <div className="absolute inset-0 flex items-center justify-center overflow-hidden">
+                                <div className="absolute w-[400px] h-[300px] bg-brand-500/10 blur-[80px] rounded-full"></div>
+                                <Parallax speed={5} className="relative z-10 h-[85%] w-auto flex items-center justify-center transition-transform duration-700 group-hover:scale-105">
+                                    <img src="/robot.jpg" className="h-full w-auto object-contain fade-bottom drop-shadow-2xl" style={{mixBlendMode: 'lighten'}} />
+                                </Parallax>
+                            </div>
+                            <div className="absolute bottom-5 left-5 z-30">
+                                <button onClick={openDrawer} className="bg-brand-500 text-slate-900 px-5 py-2.5 rounded-full font-bold hover:bg-brand-400 transition-colors shadow-[0_0_20px_rgba(20,184,166,0.3)] flex items-center gap-2 text-xs tracking-wide">
+                                    Start Building <Icons.Send />
+                                </button>
+                            </div>
+                            <div className="absolute bottom-5 right-5 z-30 text-right hidden md:block">
+                                <h4 className="text-white font-bold text-xs uppercase tracking-[0.15em] mb-1">Nexus Smart Bot</h4>
+                                <div className="flex gap-2 justify-end">
+                                    <div className="p-1 bg-slate-800 rounded-md text-brand-500"><Icons.BotHead /></div>
+                                    <div className="p-1 bg-slate-800 rounded-md text-brand-500"><Icons.Sparkle /></div>
+                                </div>
+                            </div>
+                        </div>
+                     </Reveal>
+                </section>
+                <section className="py-32 bg-slate-900 relative overflow-hidden">
+                    <SuperWaveBackground />
+                    <div className="absolute inset-0 bg-gradient-to-b from-slate-900 via-transparent to-slate-900"></div>
+                    <div className="max-w-6xl mx-auto px-8 grid grid-cols-1 lg:grid-cols-2 gap-20 items-center relative z-10">
+                        <Reveal animation="reveal-left" className="relative flex justify-center order-2 lg:order-1">
+                            <div className="absolute inset-0 bg-brand-500 blur-[120px] opacity-30 rounded-full animate-pulse-slow"></div>
+                            <Parallax speed={-5} className="relative z-10">
+                                <img src="/robo2.jpg" className="w-[450px] lg:w-[550px] animate-float-slow drop-shadow-2xl rounded-3xl border border-slate-700/50" />
+                            </Parallax>
+                        </Reveal>
+                        <Reveal animation="reveal-right" className="order-1 lg:order-2">
+                            <span className="text-brand-400 font-bold uppercase tracking-[0.2em] text-xs mb-3 block">Our Mission</span>
+                            <h2 className="text-4xl md:text-5xl font-extrabold text-white mb-6 leading-tight tracking-wide">
+                                TRANSFORMING DATA INTO <br/>
+                                <span className="text-transparent bg-clip-text bg-gradient-to-r from-brand-400 to-blue-400">PURE INTELLIGENCE.</span>
+                            </h2>
+                            <p className="text-lg text-slate-300 leading-loose mb-8 tracking-wide">
+                                We don't just search documents; we understand them. Nexus AI utilizes high-dimensional vector spaces to bridge the gap between static archives and instant, conversational answers.
+                            </p>
+                            <div className="grid grid-cols-2 gap-4">
+                                <div className="flex flex-col p-4 bg-slate-800/40 backdrop-blur rounded-2xl border border-slate-700 text-slate-200 hover:bg-slate-800/60 transition-colors">
+                                    <span className="w-8 h-8 flex items-center justify-center bg-green-500/20 text-green-400 rounded-lg mb-3"><Icons.Check /></span>
+                                    <span className="font-bold text-lg tracking-wide">99.9% Uptime</span>
+                                </div>
+                                <div className="flex flex-col p-4 bg-slate-800/40 backdrop-blur rounded-2xl border border-slate-700 text-slate-200 hover:bg-slate-800/60 transition-colors">
+                                    <span className="w-8 h-8 flex items-center justify-center bg-blue-500/20 text-blue-400 rounded-lg mb-3"><Icons.BotHead /></span>
+                                    <span className="font-bold text-lg tracking-wide">Secure Context</span>
+                                </div>
+                            </div>
+                        </Reveal>
+                    </div>
+                </section>
+                <section className="py-32 bg-slate-50 relative overflow-hidden">
+                    <div className="max-w-7xl mx-auto px-8 relative z-10">
+                        <Reveal animation="reveal-zoom" className="text-center mb-24">
+                            <span className="text-brand-500 font-bold uppercase tracking-[0.2em] text-xs mb-3 block">Simple Workflow</span>
+                            <h2 className="text-5xl font-extrabold text-slate-900 tracking-wide">How It Works</h2>
+                            <p className="text-slate-400 mt-4 text-lg tracking-wide">Your intelligent assistant in 3 simple steps.</p>
+                        </Reveal>
+                        <div className="grid grid-cols-1 lg:grid-cols-12 gap-16 items-center">
+                            <div className="lg:col-span-7 relative">
+                                <div className="absolute left-[34px] top-10 bottom-10 w-0.5 bg-slate-200 hidden md:block"></div>
+                                <div className="space-y-12">
+                                    {[{ step: "01", title: "Upload Documents", desc: "Drag and drop your PDF, DOCX, or TXT files.", icon: <Icons.Upload />, delay: 100 },
+                                      { step: "02", title: "Train the Model", desc: "Our Vector Engine indexes your content.", icon: <Icons.BotHead />, delay: 300 },
+                                      { step: "03", title: "Deploy Widget", desc: "Copy a single line of code to embed the chat.", icon: <Icons.Link />, delay: 500 }
+                                    ].map((item, i) => (
+                                        <Reveal key={i} animation="reveal-left" delay={item.delay} className="flex items-center gap-8 relative group">
+                                            <div className="z-10 bg-white border-2 border-slate-100 rounded-xl p-2 w-[70px] text-center shrink-0 shadow-sm">
+                                                <div className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">Step</div>
+                                                <div className="text-xl font-black text-brand-600 leading-none">{item.step}</div>
+                                            </div>
+                                            <div className="relative flex-1 bg-brand-500 text-white rounded-[50px] p-4 md:p-6 flex items-center gap-6 shadow-2xl shadow-brand-500/20 transform transition-all group-hover:scale-[1.02] hover:-translate-y-1 duration-300">
+                                                <div className="absolute -left-3 top-1/2 -translate-y-1/2 border-y-[12px] border-y-transparent border-r-[12px] border-r-brand-500"></div>
+                                                <div className="w-16 h-16 md:w-20 md:h-20 bg-white rounded-full flex items-center justify-center shrink-0 shadow-inner text-brand-500">{React.cloneElement(item.icon, { className: "w-8 h-8" })}</div>
+                                                <div className="pr-4">
+                                                    <h3 className="text-lg md:text-xl font-bold uppercase tracking-wide mb-2">{item.title}</h3>
+                                                    <p className="text-xs md:text-sm text-brand-50 opacity-90 leading-loose font-medium tracking-wide">{item.desc}</p>
+                                                </div>
+                                            </div>
+                                        </Reveal>
+                                    ))}
+                                </div>
+                            </div>
+                            <Reveal animation="reveal-right" delay={400} className="lg:col-span-5 relative flex justify-center lg:justify-end">
+                                <div className="absolute inset-0 bg-gradient-to-tr from-brand-100 to-transparent rounded-full filter blur-[80px] opacity-40"></div>
+                                <div className="relative z-10 transition-transform duration-700 transform hover:scale-105 hover:rotate-1 animate-tilt">
+                                    <img src="/robo3.jpg" className="w-[450px] drop-shadow-2xl blend-image object-contain" />
+                                </div>
+                            </Reveal>
+                        </div>
+                    </div>
+                </section>
+                <footer className="bg-slate-900 text-white py-16">
+                    <div className="max-w-6xl mx-auto px-8 flex flex-col items-center text-center">
+                        <div className="mb-6">
+                            <div className="flex items-center justify-center gap-2 mb-6">
+                                <div className="w-8 h-8 bg-brand-500 rounded-lg flex items-center justify-center font-bold text-white">N</div>
+                                <span className="font-bold text-xl tracking-tight">Nexus AI</span>
+                            </div>
+                            <p className="text-slate-400 text-sm leading-relaxed max-w-xs mx-auto tracking-wide">Empowering businesses with intelligent, document-aware AI assistants.</p>
+                        </div>
+                        {/* Removed Product (Features/Pricing) and Company (About/Contact) columns */}
+                    </div>
+                    <div className="max-w-6xl mx-auto px-8 pt-8 mt-12 border-t border-slate-800 text-center text-slate-500 text-xs tracking-wider">© 2026 Nexus AI Inc. All rights reserved.</div>
+                </footer>
+            </div>
+        );
+    }
+
+    function DocumentsPage({ token, documents, refreshDocs }) {
+      const [uploading, setUploading] = useState(false);
+      const fileInputRef = useRef(null);
+      const getRandomMeta = () => ({ size: Math.floor(Math.random() * 5) + 1 + ' MB', date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) });
+      const getFileMeta = (filename) => {
+        const ext = filename.split('.').pop().toLowerCase();
+        const base = { size: '2.4 MB', date: 'Today' };
+        if (ext === 'pdf') return { ...base, type: 'PDF', color: 'bg-rose-50 text-rose-600 border-rose-100', icon: <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" /></svg> };
+        if (ext === 'docx' || ext === 'doc') return { ...base, type: 'DOC', color: 'bg-blue-50 text-blue-600 border-blue-100', icon: <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>};
+        return { ...base, type: 'TXT', color: 'bg-slate-50 text-slate-600 border-slate-100', icon: <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>};
+      };
+      const uploadDocument = async (e) => {
+        const file = e.target.files[0];
+        if(!file) return;
+        setUploading(true);
+        const formData = new FormData();
+        formData.append('file', file);
+        await fetch(`${API_URL}/upload`, { method:'POST', headers: { 'Authorization': `Bearer ${token}` }, body: formData });
+        await refreshDocs();
+        setUploading(false);
+      };
+      const deleteDocument = async (filename) => {
+        if (!confirm(`Delete ${filename}?`)) return;
+        await fetch(`${API_URL}/documents/${encodeURIComponent(filename)}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${token}` } });
+        refreshDocs();
+      };
+      return (
+        <div className="flex-1 p-8 lg:p-12 bg-[#F8FAFC] overflow-y-auto h-full animate-page-transition">
+            <div className="max-w-6xl mx-auto pt-6">
+                <div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-12 gap-6">
+                    <Reveal>
+                        <h1 className="text-4xl font-extrabold text-slate-900 tracking-tight leading-tight">Knowledge Base</h1>
+                        <p className="text-slate-500 mt-2 text-base max-w-lg leading-relaxed tracking-wide">Upload your business documents. Our AI will index them instantly to provide accurate, context-aware answers.</p>
+                    </Reveal>
+                    <Reveal delay={100}>
+                         <div className="flex gap-3">
+                            <div className="px-4 py-2 bg-white border border-slate-200 rounded-xl flex flex-col items-center justify-center shadow-sm">
+                                <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Storage</span>
+                                <span className="text-sm font-bold text-slate-700">Free Tier</span>
+                            </div>
+                            <div className="px-4 py-2 bg-white border border-slate-200 rounded-xl flex flex-col items-center justify-center shadow-sm">
+                                <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Files</span>
+                                <span className="text-sm font-bold text-slate-700">{documents.length} / 10</span>
+                            </div>
+                         </div>
+                    </Reveal>
+                </div>
+                <Reveal delay={200} className="mb-12">
+                    <input ref={fileInputRef} type="file" className="hidden" onChange={uploadDocument} />
+                    <div onClick={()=>!uploading && fileInputRef.current.click()} className={`group relative overflow-hidden border-2 border-dashed rounded-3xl p-10 text-center cursor-pointer transition-all duration-300 ${uploading ? 'bg-slate-50 border-slate-300' : 'bg-white border-brand-200 hover:border-brand-500 hover:shadow-xl hover:shadow-brand-500/5'}`}>
+                        <div className="absolute inset-0 bg-gradient-to-r from-brand-50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                        <div className="relative z-10 flex flex-col items-center justify-center gap-4">
+                            <div className={`w-16 h-16 rounded-2xl flex items-center justify-center transition-transform group-hover:scale-110 group-hover:-rotate-3 ${uploading ? 'bg-slate-200 text-slate-400' : 'bg-brand-50 text-brand-500'}`}>
+                                {uploading ? <span className="animate-spin text-2xl">⟳</span> : <Icons.Upload />}
+                            </div>
+                            <div>
+                                <h3 className="text-lg font-bold text-slate-800">{uploading ? 'Processing Document...' : 'Click to Upload or Drag & Drop'}</h3>
+                                <p className="text-slate-400 text-sm mt-1 tracking-wide">Supported formats: PDF, DOCX, TXT (Max 10MB)</p>
+                            </div>
+                        </div>
+                    </div>
+                </Reveal>
+                <div className="space-y-6">
+                    <div className="flex items-center justify-between px-2">
+                        <h3 className="text-sm font-bold text-slate-400 uppercase tracking-widest">Active Documents</h3>
+                        {documents.length > 0 && <span className="text-xs font-bold px-3 py-1 bg-green-100 text-green-700 rounded-full flex items-center gap-2"><div className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse"></div> All Systems Operational</span>}
+                    </div>
+                    {documents.length === 0 ? (
+                        <Reveal delay={300}>
+                            <div className="py-20 text-center">
+                                <div className="w-20 h-20 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-4 text-slate-300"><Icons.Link /></div>
+                                <h4 className="text-slate-900 font-bold mb-1">No documents yet</h4>
+                                <p className="text-slate-500 text-sm tracking-wide">Upload your first file to train your AI.</p>
+                            </div>
+                        </Reveal>
+                    ) : (
+                        <div className="grid grid-cols-1 gap-4">
+                            {documents.map((doc, i) => {
+                                const meta = getFileMeta(doc);
+                                const mockMeta = getRandomMeta();
+                                return (
+                                    <Reveal key={i} delay={i * 100}>
+                                        <div className="group flex items-center gap-5 p-5 bg-white border border-slate-100 rounded-2xl shadow-sm hover:shadow-lg hover:border-brand-200 transition-all duration-300 hover:-translate-y-1">
+                                            <div className={`w-14 h-14 rounded-2xl flex items-center justify-center border shrink-0 ${meta.color}`}>{meta.icon}</div>
+                                            <div className="flex-1 min-w-0">
+                                                <div className="flex items-center gap-3 mb-1">
+                                                    <h4 className="font-bold text-slate-900 text-base truncate group-hover:text-brand-600 transition-colors">{doc}</h4>
+                                                    <span className="px-2 py-0.5 rounded-md bg-slate-100 text-slate-500 text-[10px] font-bold uppercase tracking-wide border border-slate-200">{meta.type}</span>
+                                                </div>
+                                                <div className="flex items-center gap-4 text-xs text-slate-400 font-medium tracking-wide">
+                                                    <span className="flex items-center gap-1.5"><div className="w-1 h-1 rounded-full bg-slate-300"></div>{mockMeta.size}</span>
+                                                    <span className="flex items-center gap-1.5"><div className="w-1 h-1 rounded-full bg-slate-300"></div>Uploaded {mockMeta.date}</span>
+                                                    <span className="flex items-center gap-1.5 text-brand-600"><Icons.Check /> Indexed</span>
+                                                </div>
+                                            </div>
+                                            <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity translate-x-2 group-hover:translate-x-0">
+                                                <button onClick={()=>deleteDocument(doc)} className="p-3 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all" title="Delete File"><Icons.Trash /></button>
+                                            </div>
+                                        </div>
+                                    </Reveal>
+                                );
+                            })}
+                        </div>
+                    )}
+                </div>
+            </div>
+        </div>
+      );
+    }
+
+    function CustomizationPage({ token }) {
+      const [config, setConfig] = useState({ bot_name: 'AI Assistant', primary_color: '#14b8a6', text_color: '#ffffff', font_family: 'Inter', chat_shape: 'circle', chat_icon: 'message', logo_url: '' });
+      const [msg, setMsg] = useState('');
+      useEffect(() => { fetch(`${API_URL}/config`, { headers: { 'Authorization': `Bearer ${token}` } }).then(r => r.json()).then(setConfig); }, []);
+      const saveConfig = async () => {
+        const res = await fetch(`${API_URL}/config`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, body: JSON.stringify(config) });
+        if (res.ok) { setMsg('Published!'); setTimeout(() => setMsg(''), 3000); }
+      };
+      const getRadius = () => config.chat_shape === 'square' ? '12px' : config.chat_shape === 'squircle' ? '24px' : '50%';
+      const iconSvg = config.chat_icon === 'bot' ? <Icons.BotHead /> : config.chat_icon === 'sparkle' ? <Icons.Sparkle /> : <Icons.Message />;
+      return (
+        <div className="flex h-full animate-page-transition bg-slate-50">
+            <div className="w-[450px] bg-white border-r border-slate-100 p-10 overflow-y-auto">
+                <h1 className="text-3xl font-extrabold text-slate-900 mb-8 tracking-wide">Design Studio</h1>
+                <div className="space-y-8">
+                    <div className="space-y-4">
+                        <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider">Identity</label>
+                        <input className="w-full p-4 bg-slate-50 border-0 rounded-xl font-bold text-slate-700" value={config.bot_name} onChange={e=>setConfig({...config, bot_name: e.target.value})} placeholder="Bot Name" />
+                        <div className="grid grid-cols-2 gap-4">
+                             <div><label className="text-xs font-bold text-slate-500 block mb-2 tracking-wide">Color</label><input type="color" className="w-full h-12 rounded-xl cursor-pointer" value={config.primary_color} onChange={e=>setConfig({...config, primary_color: e.target.value})} /></div>
+                             <div><label className="text-xs font-bold text-slate-500 block mb-2 tracking-wide">Text</label><input type="color" className="w-full h-12 rounded-xl cursor-pointer" value={config.text_color} onChange={e=>setConfig({...config, text_color: e.target.value})} /></div>
+                        </div>
+                    </div>
+                    <div className="space-y-4">
+                        <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider">Bot Avatar / Logo</label>
+                        <div className="flex gap-3">
+                            {['message', 'bot', 'sparkle'].map(icon => (
+                                <button key={icon} onClick={()=>setConfig({...config, chat_icon: icon, logo_url: ''})} 
+                                    className={`w-14 h-14 rounded-xl flex items-center justify-center border transition-all ${config.chat_icon === icon && !config.logo_url ? 'border-brand-500 bg-brand-50 text-brand-600 ring-2 ring-brand-200' : 'border-slate-200 text-slate-400 hover:border-slate-300'}`}>
+                                    {icon === 'bot' ? <Icons.BotHead /> : icon === 'sparkle' ? <Icons.Sparkle /> : <Icons.Message />}
+                                </button>
+                            ))}
+                        </div>
+                        <div className="relative">
+                            <span className="text-[10px] font-bold text-slate-400 absolute top-[-20px] right-0 uppercase">OR Custom URL</span>
+                            <div className="flex gap-2">
+                                <div className="relative flex-1">
+                                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400"><Icons.Image /></div>
+                                    <input className="w-full pl-10 p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm" placeholder="https://mysite.com/logo.png" value={config.logo_url || ''} onChange={e=>setConfig({...config, logo_url: e.target.value})} />
+                                </div>
+                            </div>
+                            <p className="text-[10px] text-slate-400 mt-1">*URL overrides selected icon. Requires valid image link.</p>
+                        </div>
+                    </div>
+                    <div className="space-y-4">
+                         <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider">Interface</label>
+                         <select className="w-full p-4 bg-slate-50 border-0 rounded-xl font-medium" value={config.font_family} onChange={e=>setConfig({...config, font_family: e.target.value})}><option value="Inter">Modern Sans</option><option value="Playfair Display">Editorial Serif</option><option value="Fira Code">Tech Mono</option></select>
+                         <div className="grid grid-cols-3 gap-2">{['circle', 'squircle', 'square'].map(s => <button key={s} onClick={()=>setConfig({...config, chat_shape: s})} className={`p-3 rounded-xl text-xs font-bold capitalize ${config.chat_shape===s?'bg-slate-900 text-white':'bg-slate-50 text-slate-500'}`}>{s}</button>)}</div>
+                    </div>
+                </div>
+                <div className="mt-10">
+                    <button onClick={saveConfig} className="w-full bg-brand-500 text-white py-4 rounded-2xl font-bold shadow-xl hover:scale-[1.02] transition-transform">{msg || 'Publish Changes'}</button>
+                </div>
+            </div>
+            <div className="flex-1 flex items-center justify-center relative bg-slate-50">
+                <div className="phone-mockup w-[380px] h-[700px] flex flex-col relative z-10">
+                    <div className="phone-notch"></div>
+                    <div className="flex-1 bg-white p-6 pt-16 relative overflow-hidden">
+                        <div className="absolute inset-0 flex flex-col justify-end items-end p-5">
+                            <div className="w-full mb-4 bg-white rounded-3xl shadow-2xl border border-slate-100 overflow-hidden" style={{fontFamily: config.font_family}}>
+                                <div className="p-5 flex justify-between items-center" style={{background: config.primary_color, color: config.text_color}}>
+                                    <span className="font-bold text-sm">{config.bot_name}</span><span>×</span>
+                                </div>
+                                <div className="h-64 bg-slate-50 p-4 space-y-4">
+                                    <div className="bg-white p-3.5 rounded-2xl rounded-tl-none text-sm shadow-sm w-3/4">Hello! I'm your assistant.</div>
+                                    <div className="p-3.5 rounded-2xl rounded-br-none text-sm w-3/4 ml-auto text-right" style={{background: config.primary_color, color: config.text_color}}>How do I look?</div>
+                                </div>
+                            </div>
+                            <div className="w-16 h-16 shadow-2xl flex items-center justify-center overflow-hidden" style={{background: config.primary_color, color: config.text_color, borderRadius: getRadius()}}>
+                                {config.logo_url ? <img src={config.logo_url} className="w-full h-full object-cover" /> : iconSvg}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+      );
+    }
+
+    function EmbedPage({ username }) {
+      const [copied, setCopied] = useState(false);
+      const code = `<script src="${WIDGET_URL}/widget.js" data-username="${username}"><\/script>`;
+      return (
+          <div className="flex-1 p-12 bg-slate-50 h-full flex items-center justify-center animate-page-transition">
+              <div className="max-w-3xl w-full">
+                  <h1 className="text-4xl font-extrabold text-slate-900 mb-6 text-center tracking-tight">Integration</h1>
+                  <div className="glass-card p-10 rounded-[40px]">
+                      <p className="text-slate-500 mb-6 text-center tracking-wide">Add this script tag to your website's <code>&lt;body&gt;</code>.</p>
+                      <div className="bg-slate-900 p-8 rounded-3xl overflow-x-auto"><pre className="text-brand-500 font-mono text-sm">{code}</pre></div>
+                      <button onClick={()=>{navigator.clipboard.writeText(code); setCopied(true); setTimeout(()=>setCopied(false),2000)}} className="mt-8 w-full bg-brand-500 text-white py-4 rounded-2xl font-bold hover:bg-brand-600 transition-all">{copied ? 'Copied!' : 'Copy to Clipboard'}</button>
+                  </div>
+              </div>
+          </div>
+      );
+    }
+
+    function Dashboard() {
+      const [token] = useState(localStorage.getItem('token'));
+      const [username] = useState(localStorage.getItem('username'));
+      const [view, setView] = useState('home'); 
+      const [sidebarOpen, setSidebarOpen] = useState(false);
+      const [documents, setDocuments] = useState([]);
+      const [chatOpen, setChatOpen] = useState(false);
+      const [messages, setMessages] = useState([]);
+      const [input, setInput] = useState('');
+      const [isTyping, setIsTyping] = useState(false);
+      const chatEndRef = useRef(null);
+
+      if(!token) { window.location.href = '/login'; return null; }
+
+      useEffect(() => { fetchDocuments(); }, []);
+      const fetchDocuments = async () => {
+          try {
+            const res = await fetch(`${API_URL}/documents`, { headers: { 'Authorization': `Bearer ${token}` } });
+            if(res.ok) { const data = await res.json(); setDocuments(data.documents || []); }
+            else if(res.status === 401) { localStorage.clear(); window.location.href = '/login'; }
+          } catch(e) {}
+      };
+      const sendMessage = async () => {
+        if(!input.trim()) return;
+        const msg = input; setInput('');
+        setMessages(p=>[...p, {role:'user', content:msg}]);
+        setIsTyping(true);
+        try {
+          const res = await fetch(`${API_URL}/chat`, { method:'POST', headers:{'Content-Type':'application/json','Authorization':`Bearer ${token}`}, body:JSON.stringify({message:msg}) });
+          const data = await res.json();
+          setIsTyping(false);
+          setMessages(p=>[...p, {role:'assistant', content:data.response}]);
+        } catch(e) { setIsTyping(false); }
+      };
+      useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages, isTyping]);
+
+      return (
+        <div className="w-full h-full flex relative overflow-hidden bg-[#F1F5F9]">
+            
+            {/* FLOATING GLASS SIDEBAR (Transparent/Frosted & Slimmer) */}
+            <div className={`${sidebarOpen ? 'w-64 px-5' : 'w-[80px] px-0 items-center'} fixed left-6 top-6 bottom-6 bg-white/60 backdrop-blur-xl border border-white/80 shadow-2xl shadow-brand-900/5 rounded-[40px] z-50 transition-all duration-500 cubic-bezier(0.34, 1.56, 0.64, 1) flex flex-col overflow-hidden`}>
+                
+                {/* Header / Toggle */}
+                <div className={`w-full h-24 flex items-center ${sidebarOpen ? 'justify-between' : 'justify-center'} shrink-0`}>
+                    {sidebarOpen && <div className="flex items-center gap-3"><div className="w-8 h-8 bg-brand-500 rounded-lg flex items-center justify-center font-bold text-white shadow-lg shadow-brand-500/30">N</div><span className="font-bold text-lg text-slate-800">Nexus</span></div>}
+                    <button onClick={() => setSidebarOpen(!sidebarOpen)} className="w-10 h-10 rounded-full bg-white/50 hover:bg-white text-slate-500 flex items-center justify-center transition-all shadow-sm border border-white">
+                        {sidebarOpen ? <Icons.ChevronLeft /> : <div className="w-8 h-8 bg-brand-500 rounded-lg flex items-center justify-center font-bold text-white shadow-lg shadow-brand-500/30">N</div>}
+                    </button>
+                </div>
+
+                {/* Navigation Items */}
+                <div className="flex-1 w-full space-y-3 py-4 flex flex-col">
+                    {[
+                        { id: 'home', label: 'Home', icon: <Icons.Home /> },
+                        { id: 'docs', label: 'Documents', icon: <Icons.Upload /> },
+                        { id: 'customize', label: 'Design', icon: <Icons.Settings /> },
+                        { id: 'embed', label: 'Integration', icon: <Icons.Link /> },
+                    ].map(item => (
+                        <button key={item.id} onClick={() => setView(item.id)} 
+                            className={`group flex items-center gap-4 p-3 rounded-full transition-all duration-300 ${view === item.id 
+                                ? 'bg-slate-900 text-white shadow-xl shadow-slate-900/20 translate-x-1' 
+                                : 'text-slate-500 hover:bg-white/80 hover:text-slate-900 hover:shadow-sm'} 
+                                ${sidebarOpen ? 'w-full px-5' : 'w-12 h-12 justify-center p-0 mx-auto'}`}
+                        >
+                            <div className={`w-6 h-6 flex items-center justify-center`}>{item.icon}</div>
+                            {sidebarOpen && <span className="font-bold text-sm tracking-wide whitespace-nowrap">{item.label}</span>}
+                        </button>
+                    ))}
+                </div>
+
+                {/* Footer User Profile */}
+                <div className={`w-full py-6 mt-auto ${sidebarOpen ? '' : 'flex justify-center'}`}>
+                    <div className={`flex items-center gap-3 p-2 rounded-full ${sidebarOpen ? 'bg-white/50 border border-white shadow-sm pr-4' : ''}`}>
+                        <div className="w-10 h-10 bg-gradient-to-tr from-brand-400 to-blue-500 rounded-full flex items-center justify-center text-white font-bold shadow-md">
+                            {username[0].toUpperCase()}
+                        </div>
+                        {sidebarOpen && (
+                            <div className="flex-1 min-w-0">
+                                <p className="text-xs font-bold text-slate-900 truncate">{username}</p>
+                                <button onClick={()=>{localStorage.clear();window.location.href='/login'}} className="text-[10px] text-slate-400 hover:text-red-500 flex items-center gap-1 mt-0.5 font-bold">Sign Out</button>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            </div>
+
+            {/* Main Content Area (Dynamic Margins) */}
+            <div className={`flex-1 h-full flex flex-col relative overflow-y-auto transition-all duration-500 ${sidebarOpen ? 'ml-[300px]' : 'ml-[110px]'} mr-6 my-6 rounded-[40px] bg-white border border-white/50 shadow-sm`}>
+                {view === 'home' && <LandingPage openDrawer={() => setView('docs')} />}
+                {view === 'docs' && <DocumentsPage token={token} documents={documents} refreshDocs={fetchDocuments} />}
+                {view === 'customize' && <CustomizationPage token={token} />}
+                {view === 'embed' && <EmbedPage username={username} />}
+            </div>
+
+            {/* Chatbot Overlay */}
+            {chatOpen && (
+              <div className="fixed bottom-6 right-6 w-96 h-[600px] bg-white shadow-2xl rounded-3xl border flex flex-col overflow-hidden z-50 animate-page-transition">
+                <div className="bg-slate-900 text-white p-5 flex justify-between items-center">
+                    <div className="flex items-center gap-3"><div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div><span className="font-bold text-sm">Nexus Bot</span></div>
+                    <button onClick={()=>setChatOpen(false)}><Icons.Close /></button>
+                </div>
+                <div className="flex-1 overflow-auto p-5 space-y-4 bg-slate-50">
+                  {messages.map((m,i)=>(<div key={i} className={`p-4 text-sm rounded-2xl max-w-[85%] shadow-sm ${m.role==='user'?'ml-auto bg-brand-600 text-white rounded-tr-sm':'bg-white text-slate-700 border rounded-tl-sm'}`}>{m.content}</div>))}
+                  {isTyping && <div className="text-xs text-slate-400 ml-2 animate-pulse">AI is thinking...</div>}
+                  <div ref={chatEndRef}></div>
+                </div>
+                <div className="p-4 bg-white border-t flex gap-3">
+                  <input value={input} onChange={e=>setInput(e.target.value)} onKeyPress={e=>e.key==='Enter'&&sendMessage()} className="flex-1 bg-slate-50 border-0 rounded-xl px-4 text-sm outline-none focus:ring-2 focus:ring-brand-500" placeholder="Ask something..." />
+                  <button onClick={sendMessage} className="bg-slate-900 text-white p-3 rounded-xl"><Icons.Send /></button>
+                </div>
+              </div>
+            )}
+            {!chatOpen && <button onClick={()=>setChatOpen(true)} className="fixed bottom-10 right-10 w-16 h-16 bg-brand-600 text-white rounded-full shadow-2xl flex items-center justify-center hover:scale-110 transition-transform z-40"><Icons.Message /></button>}
+        </div>
+      );
+    }
+    ReactDOM.createRoot(document.getElementById('root')).render(<Dashboard />);
+  </script>
+</body>
+</html>
