@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Login - Nexus AI</title>
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
+  
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            brand: { 50: '#f0fdfa', 100: '#ccfbf1', 500: '#14b8a6', 600: '#0d9488', 900: '#134e4a' },
+          },
+          fontFamily: { sans: ['Plus Jakarta Sans', 'sans-serif'] },
+        }
+      }
+    }
+  </script>
+
+  <style>
+    body { background-color: #f0fdfa; overflow: hidden; }
+
+    /* --- DASHBOARD THEMED NEUMORPHISM --- */
+    .neu-card {
+      background: #f0fdfa;
+      border-radius: 50px;
+      box-shadow: 20px 20px 60px #cedbd8, -20px -20px 60px #ffffff;
+    }
+    .neu-input {
+      background: #f0fdfa;
+      box-shadow: inset 6px 6px 12px #cedbd8, inset -6px -6px 12px #ffffff;
+    }
+    .neu-button {
+      background: #14b8a6;
+      box-shadow: 6px 6px 12px #cedbd8, -6px -6px 12px #ffffff;
+    }
+    .neu-button:active {
+      box-shadow: inset 4px 4px 8px #0d9488, inset -4px -4px 8px #1ae7cf;
+    }
+
+    /* --- ADVANCED ROBOT ANIMATIONS --- */
+    @keyframes float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-12px); } }
+    
+    @keyframes eye-blink {
+      0%, 45%, 55%, 100% { transform: scaleY(1); }
+      50% { transform: scaleY(0.05); }
+    }
+
+    @keyframes led-glow {
+      0%, 100% { opacity: 1; filter: drop-shadow(0 0 4px #14b8a6); }
+      50% { opacity: 0.7; filter: drop-shadow(0 0 10px #14b8a6); }
+    }
+    
+    .robot-float { animation: float 6s ease-in-out infinite; }
+    .eye-blink { transform-origin: center; animation: eye-blink 4s infinite; }
+    .led-expression { animation: led-glow 3s ease-in-out infinite; }
+
+    .form-container {
+      opacity: 0;
+      transform: translateX(100px);
+      transition: all 0.8s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+    .form-visible { opacity: 1; transform: translateX(0); }
+  </style>
+</head>
+<body class="h-screen w-screen flex items-center justify-center">
+
+  <div id="root" class="relative z-10 w-full h-full"></div>
+
+  <script type="text/babel">
+    const { useState, useEffect } = React;
+    const API_URL = window.location.origin + '/api';
+
+    // --- RESTORED FRIENDLY 3D TOY BOT ---
+    function FriendlyToyBot() {
+      return (
+        <div className="relative w-[380px] h-[400px] flex items-center justify-center">
+          <svg width="340" height="380" viewBox="0 0 400 450" fill="none">
+            <defs>
+              {/* Premium Glossy White Shading */}
+              <radialGradient id="toyGloss" cx="35%" cy="25%" r="75%">
+                <stop offset="0%" stopColor="#ffffff" />
+                <stop offset="60%" stopColor="#eef2f6" />
+                <stop offset="100%" stopColor="#cbd5e1" />
+              </radialGradient>
+              
+              {/* Metallic Silver Joint Shading */}
+              <linearGradient id="silverJoint" x1="0" y1="0" x2="1" y2="1">
+                <stop offset="0%" stopColor="#e2e8f0" />
+                <stop offset="50%" stopColor="#94a3b8" />
+                <stop offset="100%" stopColor="#475569" />
+              </linearGradient>
+
+              {/* Digital Screen Texture */}
+              <pattern id="hexPattern" x="0" y="0" width="4" height="4" patternUnits="userSpaceOnUse">
+                <path d="M 4 0 L 0 0 0 4" fill="none" stroke="white" strokeWidth="0.1" opacity="0.1" />
+              </pattern>
+            </defs>
+
+            <g className="robot-float">
+              {/* Ground Shadow */}
+              <ellipse cx="200" cy="420" rx="50" ry="8" fill="#1e293b" opacity="0.1" />
+
+              {/* CHIB-STYLE ARMS (ROUNDED) */}
+              <g className="arms">
+                <circle cx="120" cy="290" r="14" fill="url(#silverJoint)" />
+                <circle cx="95" cy="325" r="26" fill="url(#toyGloss)" stroke="#cbd5e1" strokeWidth="0.5" />
+                <circle cx="280" cy="290" r="14" fill="url(#silverJoint)" />
+                <circle cx="305" cy="325" r="26" fill="url(#toyGloss)" stroke="#cbd5e1" strokeWidth="0.5" />
+              </g>
+
+              {/* CHIB-STYLE LEGS (STUBBY) */}
+              <g className="legs">
+                <rect x="160" y="360" width="16" height="15" rx="5" fill="url(#silverJoint)" />
+                <rect x="224" y="360" width="16" height="15" rx="5" fill="url(#silverJoint)" />
+                <path d="M 148 375 Q 168 370 188 375 L 182 395 Q 168 398 150 395 Z" fill="url(#toyGloss)" />
+                <path d="M 212 375 Q 232 370 252 375 L 246 395 Q 232 398 218 395 Z" fill="url(#toyGloss)" />
+              </g>
+
+              {/* ROUND EGG BODY */}
+              <path d="M 135 240 Q 135 370 200 370 Q 265 370 265 240 Z" fill="url(#toyGloss)" stroke="#cbd5e1" strokeWidth="0.5" />
+              {/* Core Light */}
+              <circle cx="200" cy="315" r="10" fill="#f0fdfa" stroke="#14b8a6" strokeWidth="1" opacity="0.4" />
+              <circle cx="200" cy="315" r="4" fill="#14b8a6" filter="blur(1px)" />
+
+              {/* NECK JOINT */}
+              <circle cx="200" cy="235" r="22" fill="url(#silverJoint)" />
+
+              {/* LARGE POLISHED HEAD */}
+              <rect x="90" y="65" width="220" height="180" rx="90" fill="url(#toyGloss)" stroke="#ffffff" strokeWidth="1.5" />
+              
+              {/* Visor Reflection */}
+              <path d="M 145 90 Q 200 75 255 90" stroke="white" strokeWidth="6" strokeLinecap="round" opacity="0.3" fill="none" />
+
+              {/* Antennas */}
+              <circle cx="155" cy="78" r="7" fill="url(#toyGloss)" />
+              <circle cx="245" cy="78" r="7" fill="url(#toyGloss)" />
+
+              {/* DARK VISOR UNIT */}
+              <g className="visor">
+                <rect x="125" y="115" width="150" height="105" rx="45" fill="#0f172a" />
+                <rect x="125" y="115" width="150" height="105" rx="45" fill="url(#hexPattern)" />
+                
+                {/* EXPRESSIVE CYAN LEDS */}
+                <g className="led-expression" stroke="#14b8a6" strokeWidth="6" strokeLinecap="round" fill="none">
+                    {/* Blinking Eyes */}
+                    <g className="eye-blink">
+                      <path d="M 155 165 Q 168 145 181 165" />
+                      <path d="M 219 165 Q 232 145 245 165" />
+                    </g>
+                    {/* Pulsing Smile */}
+                    <path d="M 188 190 Q 200 200 212 190" strokeWidth="4" />
+                </g>
+              </g>
+            </g>
+          </svg>
+        </div>
+      );
+    }
+
+    function LoginPage() {
+      const [stage, setStage] = useState('initial');
+      const [isRegister, setIsRegister] = useState(false);
+      const [username, setUsername] = useState('');
+      const [password, setPassword] = useState('');
+      const [error, setError] = useState('');
+
+      useEffect(() => {
+        setTimeout(() => setStage('visible'), 100);
+        setTimeout(() => setStage('moving'), 1500);
+        setTimeout(() => setStage('form'), 2300);
+        if(localStorage.getItem('token')) window.location.href = '/dashboard';
+      }, []);
+
+      const handleAuth = async (e) => {
+        e.preventDefault();
+        setError('');
+        const endpoint = isRegister ? '/register' : '/login';
+        try {
+          const res = await fetch(`${API_URL}${endpoint}`, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username, password })
+          });
+          const data = await res.json();
+          if (res.ok) {
+            localStorage.setItem('token', data.token);
+            localStorage.setItem('username', data.username);
+            window.location.href = '/dashboard';
+          } else { setError(data.detail || 'Access Denied'); }
+        } catch (err) { setError('Network Error'); }
+      };
+
+      return (
+        <div className="w-full h-full flex items-center justify-center relative bg-brand-50">
+          
+          <div className="w-full flex justify-center items-center relative max-w-7xl">
+            
+            {/* RESTORED FAVORITE ROBOT */}
+            <div className={`transition-all duration-1000 flex flex-col items-center z-20 
+              ${stage === 'form' ? 'translate-x-[-230px] scale-100' : 'translate-x-0 scale-125'}`}>
+              <FriendlyToyBot />
+            </div>
+
+            {/* NEUMORPHIC FORM SECTION */}
+            <div className={`absolute left-1/2 ml-[20px] w-[400px] form-container ${stage === 'form' ? 'form-visible' : ''} z-30`}>
+              <div className="neu-card p-12 flex flex-col items-center">
+                
+                <div className="neu-icon-circle w-20 h-20 rounded-full flex items-center justify-center mb-6">
+                    <div className="w-14 h-14 rounded-full bg-brand-900 flex items-center justify-center text-brand-500 font-black text-2xl shadow-lg">
+                        N
+                    </div>
+                </div>
+
+                <div className="text-center mb-8">
+                    <h2 className="text-3xl font-black text-brand-900 tracking-tighter">Nexus AI</h2>
+                    <p className="text-brand-500/80 text-[10px] font-black uppercase tracking-[0.3em] mt-2">Neural Hub Login</p>
+                </div>
+
+                {error && <div className="mb-6 text-[10px] text-red-500 font-black uppercase text-center tracking-widest"> {error} </div>}
+
+                <form onSubmit={handleAuth} className="w-full space-y-6">
+                  
+                  <div className="relative flex items-center group">
+                    <div className="absolute left-6 text-brand-500/30 group-focus-within:text-brand-500 transition-colors">
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
+                    </div>
+                    <input 
+                      className="neu-input w-full pl-14 pr-6 py-4 rounded-full outline-none text-brand-900 font-bold text-sm placeholder-brand-900/20 transition-all"
+                      placeholder="Username"
+                      value={username} 
+                      onChange={e=>setUsername(e.target.value)} 
+                    />
+                  </div>
+
+                  <div className="relative flex items-center group">
+                    <div className="absolute left-6 text-brand-500/30 group-focus-within:text-brand-500 transition-colors">
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
+                    </div>
+                    <input 
+                      type="password" 
+                      className="neu-input w-full pl-14 pr-6 py-4 rounded-full outline-none text-brand-900 font-bold text-sm placeholder-brand-900/20 transition-all"
+                      placeholder="Password"
+                      value={password} 
+                      onChange={e=>setPassword(e.target.value)} 
+                    />
+                  </div>
+
+                  <button className="neu-button w-full text-white py-4 rounded-full font-black text-xs tracking-[0.3em] hover:brightness-105 active:scale-[0.98] transition-all mt-4">
+                    {isRegister ? 'SIGN UP' : 'LOGIN'}
+                  </button>
+                </form>
+
+                <div className="mt-8 text-center">
+                  <button 
+                    onClick={() => { setIsRegister(!isRegister); setError(''); }}
+                    className="text-[10px] font-black text-brand-900/40 hover:text-brand-500 transition-colors uppercase tracking-widest"
+                  >
+                    {isRegister ? 'Already a Member?' : 'Create New Account'}
+                  </button>
+                </div>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      );
+    }
+
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<LoginPage />);
+  </script>
+</body>
+</html>
