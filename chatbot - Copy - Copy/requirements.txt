@@ -10,3 +10,5 @@ faiss-cpu
 numpy
 python-docx
 pypdf2
+sqlalchemy
+python-dotenv
